@@ -63,6 +63,7 @@ class Ticket(SQLModel, table=True):
 
 
 class TrainRun(SQLModel, table=True):
+    __tablename__ = "train_run"
     id: int | None = Field(default=None, primary_key=True)
     train_id: int = Field(foreign_key="train.id")
     train_run_num_id: int = Field(foreign_key="train_run_num.id")
@@ -102,6 +103,7 @@ class Seat(SQLModel, table=True):
 
 
 class TrainRunNum(SQLModel, table=True):
+    __tablename__ = "train_run_num"
     id: int | None = Field(default=None, primary_key=True)
     name: str
 
