@@ -1,27 +1,20 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.params import Depends
-from sqlmodel import Session
-from typing import Annotated
 from sql.database import engine, SQLModel
-from sql import crud
+from routers import users, stations, trains, carriages
 import uvicorn
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
-
-def get_session():
-    with Session(engine) as session:
-        yield session
-
-sessionDep = Annotated[Session, Depends(get_session)]
 app = FastAPI()
-@app.get("/")
-async def root():
-    return {"Hello": "World"}
+app.include_router(users.router)
+app.include_router(stations.router)
+app.include_router(trains.router)
+app.include_router(carriages.router)
 
-@app.get("/items/{item_id}")
-async def read_item(item_id: int):
-    return {"item_id": item_id}
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
 
 def main():
     create_db_and_tables()
