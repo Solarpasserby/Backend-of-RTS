@@ -1,10 +1,13 @@
 from fastapi import HTTPException
 from sqlmodel import Session, select
-from sql.models import User, Train, Carriage, Seat, Station
+from sql.models import User, Train, Carriage, Seat, Station, TrainRunNum, Route, TrainRun
 from sql.schemas import UserCreate, UserUpdate
 from sql.schemas import CarriageCreate, CarriageUpdate
 from sql.schemas import StationCreate, StationUpdate
 from sql.schemas import TrainCreate, TrainUpdate
+from sql.schemas import TrainRunNumCreate, TrainRunNumUpdate
+from sql.schemas import RouteUpdate
+from sql.schemas import TrainRunCreate, TrainRunUpdate
 
 train_dict = {
     "fast": ["second_class", "first_class", "business"],
@@ -250,3 +253,150 @@ def set_station_deprecated(station_id: int, deprecated: bool, session: Session):
     session.commit()
     session.refresh(db_station)
     return db_station
+
+
+# TrainRunNum CRUD
+def get_train_run_num(train_run_num_id: int, session: Session):
+    train_run_num = session.get(TrainRunNum, train_run_num_id)
+    if train_run_num is None:
+        raise HTTPException(status_code=404, detail="TrainRunNum not found")
+    return train_run_num
+
+def add_train_run_num(train_run_num: TrainRunNumCreate, session: Session):
+    train_run_num_data = train_run_num.model_dump()
+    routes = train_run_num_data.pop("routes")
+    db_train_run_num = TrainRunNum.model_validate(train_run_num_data)
+    session.add(db_train_run_num)
+
+    for route in train_run_num.routes:
+        route_data = route.model_dump()
+        station_name = route_data.pop("station_name")
+        station = session.exec(select(Station).where(Station.name == station_name)).first()
+        print(station)
+        if station is None:
+            raise HTTPException(status_code=404, detail="Station not found")
+        db_route = Route(**route_data)
+        db_route.station = station
+        db_train_run_num.routes.append(db_route)
+
+    session.commit()
+    session.refresh(db_train_run_num)
+    return db_train_run_num
+
+def remove_train_run_num(train_run_num_id: int, session: Session):
+    train_run_num = session.get(TrainRunNum, train_run_num_id)
+    if train_run_num is None:
+        raise HTTPException(status_code=404, detail="TrainRunNum not found")
+    if train_run_num.train_runs:
+        raise HTTPException(status_code=400, detail="TrainRunNum has been used in train runs")
+    if train_run_num.deprecated:
+        raise HTTPException(status_code=400, detail="You can't delete deprecated train run num")
+    session.delete(train_run_num)
+    session.commit()
+    return {"message": "TrainRunNum deleted successfully"}
+
+def modify_train_run_num(train_run_num_id: int, train_run_num: TrainRunNumUpdate, session: Session):
+    db_train_run_num = session.get(TrainRunNum, train_run_num_id)
+    if db_train_run_num is None:
+        raise HTTPException(status_code=404, detail="TrainRunNum not found")
+    train_run_num_data = train_run_num.model_dump(exclude_unset=True)
+    db_train_run_num.sqlmodel_update(train_run_num_data)
+    session.add(db_train_run_num)
+    session.commit()
+    session.refresh(db_train_run_num)
+    return db_train_run_num
+
+def set_train_run_num_deprecated(train_run_num_id: int, deprecated: bool, session: Session):
+    db_train_run_num = session.get(TrainRunNum, train_run_num_id)
+    if db_train_run_num is None:
+        raise HTTPException(status_code=404, detail="TrainRunNum not found")
+    db_train_run_num.deprecated = deprecated
+    session.add(db_train_run_num)
+    session.commit()
+    session.refresh(db_train_run_num)
+    return db_train_run_num
+
+# Route CRUD
+def get_route(route_id: int, session: Session):
+    route = session.get(Route, route_id)
+    if route is None:
+        raise HTTPException(status_code=404, detail="Route not found")
+    return route
+
+def modify_route(route_id: int, route: RouteUpdate, session: Session):
+    db_route = session.get(Route, route_id)
+    if db_route is None:
+        raise HTTPException(status_code=404, detail="Route not found")
+    route_data = route.model_dump(exclude_unset=True)
+    db_route.sqlmodel_update(route_data)
+    session.add(db_route)
+    session.commit()
+    session.refresh(db_route)
+    return db_route
+
+# TrainRun CRUD
+def get_train_run(train_run_id: int, session: Session):
+    train_run = session.get(TrainRun, train_run_id)
+    if train_run is None:
+        raise HTTPException(status_code=404, detail="TrainRun not found")
+    return train_run
+
+def add_train_run(train_run: TrainRunCreate, session: Session):
+    train = session.get(Train, train_run.train_id)
+    if train is None:
+        raise HTTPException(status_code=404, detail="Train not found")
+    train_run_num = session.get(TrainRunNum, train_run.train_run_num_id)
+    if train_run_num is None:
+        raise HTTPException(status_code=404, detail="TrainRunNum not found")
+
+    db_train_run = TrainRun.model_validate(train_run)
+    db_train_run.train = train
+    db_train_run.train_run_num = train_run_num
+    session.add(db_train_run)
+    session.commit()
+    session.refresh(db_train_run)
+    return db_train_run
+
+def remove_train_run(train_run_id: int, session: Session):
+    train_run = session.get(TrainRun, train_run_id)
+    if train_run is None:
+        raise HTTPException(status_code=404, detail="TrainRun not found")
+    if train_run.finished:
+        raise HTTPException(status_code=400, detail="You can't delete finished train run")
+    if train_run.tickets:
+        raise HTTPException(status_code=400, detail="TrainRun has been used in tickets")
+    session.delete(train_run)
+    session.commit()
+    return {"message": "TrainRun deleted successfully"}
+
+def modify_train_run(train_run_id: int, train_run: TrainRunUpdate, session: Session):
+    db_train_run = session.get(TrainRun, train_run_id)
+    if db_train_run is None:
+        raise HTTPException(status_code=404, detail="TrainRun not found")
+    if db_train_run.tickets:
+        raise HTTPException(status_code=400, detail="The tickets have been sold")
+    train = session.get(Train, train_run.train_id)
+    if train is None:
+        raise HTTPException(status_code=404, detail="Train not found")
+    train_run_num = session.get(TrainRunNum, train_run.train_run_num_id)
+    if train_run_num is None:
+        raise HTTPException(status_code=404, detail="TrainRunNum not found")
+
+    train_run_data = train_run.model_dump(exclude_unset=True)
+    db_train_run.sqlmodel_update(train_run_data)
+    db_train_run.train = train
+    db_train_run.train_run_num = train_run_num
+    session.add(db_train_run)
+    session.commit()
+    session.refresh(db_train_run)
+    return db_train_run
+
+def set_train_run_finished(train_run_id: int, finished: bool, session: Session):
+    db_train_run = session.get(TrainRun, train_run_id)
+    if db_train_run is None:
+        raise HTTPException(status_code=404, detail="TrainRun not found")
+    db_train_run.finished = finished
+    session.add(db_train_run)
+    session.commit()
+    session.refresh(db_train_run)
+    return db_train_run

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from .models import TrainType, CarriageType
+from datetime import time, date
 
 # User schemas
 class UserBase(BaseModel):
@@ -87,3 +88,70 @@ class StationUpdate(BaseModel):
 
 class StationDeprecate(BaseModel):
     deprecated: bool = True
+
+# Route schemas
+class RouteBase(BaseModel):
+    arrival_time: time
+    departure_time: time
+    sequence: int
+
+class RouteCreate(RouteBase):
+    station_name: str
+
+class RouteOut(RouteBase):
+    id: int
+
+class RouteOutWithTrainRunNum(RouteOut):
+    train_run_num: "TrainRunNumOut"
+    station: "StationOut"
+
+class RouteUpdate(BaseModel):
+    arrival_time: str | None
+    departure_time: str | None
+    sequence: int | None
+
+# TrainRunNum schemas
+class TrainRunNumBase(BaseModel):
+    name: str
+
+class TrainRunNumCreate(TrainRunNumBase):
+    routes: list["RouteCreate"]
+
+class TrainRunNumOut(TrainRunNumBase):
+    id: int
+    deprecated: bool
+
+class TrainRunNumOutWithRoutes(TrainRunNumOut):
+    routes: list["RouteOut"]
+
+class TrainRunNumUpdate(BaseModel):
+    name: str | None
+
+class TrainRunNumDeprecate(BaseModel):
+    deprecated: bool = True
+
+# TrainRun schemas
+class TrainRunBase(BaseModel):
+    date: date
+
+class TrainRunCreate(TrainRunBase):
+    train_id: int
+    train_run_num_id: int
+
+class TrainRunOut(TrainRunBase):
+    id: int
+    train_id: int
+    train_run_num_id: int
+
+class TrainRunOutWithTrain(TrainRunBase):
+    id: int
+    train: TrainOut
+    train_run_num: TrainRunNumOut
+
+class TrainRunUpdate(BaseModel):
+    date: date | None
+    train_id: int | None
+    train_run_num_id: int | None
+
+class TrainRunFinish(BaseModel):
+    finished: bool = True

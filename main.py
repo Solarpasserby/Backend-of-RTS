@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.params import Depends
 from sql.database import engine, SQLModel
-from routers import users, stations, trains, carriages
+from routers import users, stations, trains, carriages, trainrunnums, trainruns
 import uvicorn
 
 def create_db_and_tables():
@@ -11,6 +11,8 @@ app.include_router(users.router)
 app.include_router(stations.router)
 app.include_router(trains.router)
 app.include_router(carriages.router)
+app.include_router(trainrunnums.router)
+app.include_router(trainruns.router)
 
 @app.get("/")
 def read_root():

@@ -1,5 +1,6 @@
 from email.policy import default
 
+from annotated_types.test_cases import cases
 from sqlmodel import SQLModel, Field, Relationship
 from enum import Enum
 from datetime import datetime, date, time
@@ -92,7 +93,6 @@ class Carriage(SQLModel, table=True):
     deprecated: bool = False
 
     train: Train | None = Relationship(back_populates="carriages")
-    seats: list["Seat"] = Relationship(back_populates="carriage", cascade_delete=True)
 
 
 class Seat(SQLModel, table=True):
@@ -101,7 +101,6 @@ class Seat(SQLModel, table=True):
     seat_num: str
     available: bool = True
 
-    carriage: Carriage = Relationship(back_populates="seats")
     tickets: list["Ticket"] = Relationship(back_populates="seat")
 
 
@@ -112,7 +111,7 @@ class TrainRunNum(SQLModel, table=True):
     deprecated: bool = False
 
     train_runs: list["TrainRun"] = Relationship(back_populates="train_run_num")
-    routes: list["Route"] = Relationship(back_populates="train_run_num")
+    routes: list["Route"] = Relationship(back_populates="train_run_num", cascade_delete=True)
 
 
 class Route(SQLModel, table=True):
