@@ -1,13 +1,15 @@
 from fastapi import HTTPException
 from sqlmodel import Session, select
-from sql.models import User, Train, Carriage, Seat, Station, TrainRunNum, Route, TrainRun
+from datetime import datetime
+from sql.models import User, Train, Carriage, Seat, Station, TrainRunNum, Route, TrainRun, Ticket, TicketSlot, Order
 from sql.schemas import UserCreate, UserUpdate
 from sql.schemas import CarriageCreate, CarriageUpdate
 from sql.schemas import StationCreate, StationUpdate
 from sql.schemas import TrainCreate, TrainUpdate
-from sql.schemas import TrainRunNumCreate, TrainRunNumUpdate
+from sql.schemas import TrainRunNumCreate, TrainRunNumUpdate, TrainRunDemand
 from sql.schemas import RouteUpdate
 from sql.schemas import TrainRunCreate, TrainRunUpdate
+from sql.schemas import OrderCreate
 
 train_dict = {
     "fast": ["second_class", "first_class", "business"],
@@ -27,6 +29,13 @@ seat_num_dict = {
     "second_class": ["A", "B", "C", "D", "F"],
     "first_class": ["A", "C", "D", "F"],
     "business": ["A", "C", "F"]
+}
+price_multiple_dict = {
+    "fast": 0.45,
+    "slow": 0.3,
+    "second_class": 1,
+    "first_class": 2,
+    "business": 4
 }
 
 
@@ -73,7 +82,140 @@ def set_user_ban(user_id: int, banned: bool, session: Session):
     session.refresh(db_user)
     return db_user
 
+
 # Order CRUD
+def get_order(order_id: int, session: Session):
+    order = session.get(Order, order_id)
+    if order is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
+
+def get_orders_by_user(user_id: int, session: Session):
+    orders = session.exec(select(Order).where(Order.user_id == user_id)).all()
+    return orders
+
+def add_order(order: OrderCreate, session: Session):
+    if order.start_seq >= order.end_seq:
+        raise HTTPException(status_code=400, detail="Invalid route sequence")
+    if session.get(Route, order.start_route_id) is None:
+        raise HTTPException(status_code=404, detail="Start route not found")
+    if session.get(Route, order.end_route_id) is None:
+        raise HTTPException(status_code=404, detail="End route not found")
+
+    if order.is_through:
+        ticket_slot = session.exec(select(TicketSlot).where(TicketSlot.train_run_id == order.train_run_id, TicketSlot.status == "empty")).first()
+        if ticket_slot is None:
+            raise HTTPException(status_code=400, detail="No available ticket slot")
+        ticket = Ticket(price=order.price, start_sequence=order.start_seq, end_sequence=order.end_seq)
+        ticket_slot.status = "full"
+        ticket.ticket_slot = ticket_slot
+    else:
+        ticket_slots = session.exec(select(TicketSlot).where(TicketSlot.train_run_id == order.train_run_id, TicketSlot.status == "remaining")).all()
+        if not ticket_slots:
+            ticket_slot = session.exec(select(TicketSlot).where(TicketSlot.train_run_id == order.train_run_id, TicketSlot.status == "empty")).first()
+            if ticket_slot is None:
+                raise HTTPException(status_code=400, detail="No available ticket slot")
+            else:
+                ticket = Ticket(price=order.price, start_sequence=order.start_seq, end_sequence=order.end_seq)
+                ticket_slot.status = "remaining"
+                ticket.ticket_slot = ticket_slot
+        else:
+            add_failed = True
+            for ticket_slot in ticket_slots:
+                addable = True
+                total = order.total_routes - (order.end_seq - order.start_seq + 1)
+                for ticket in ticket_slot.ticket:
+                    if (order.start_seq < ticket.start_sequence < order.end_seq or
+                        order.start_seq < ticket.end_sequence < order.end_seq or
+                        ticket.start_sequence <= order.start_seq and ticket.end_sequence >= order.end_seq):
+                        addable = False
+                        break
+
+                    total -= ticket.end_sequence - ticket.start_sequence
+
+                if addable:
+                    add_failed = False
+                    ticket = Ticket(price=order.price, start_sequence=order.start_seq, end_sequence=order.end_seq)
+                    if total == 0:
+                        ticket_slot.status = "full"
+                    elif total < 0:
+                        raise HTTPException(status_code=400, detail="Invalid total routes")
+                    ticket.ticket_slot = ticket_slot
+                    break
+
+            if add_failed:
+                ticket_slot = session.exec(select(TicketSlot).where(TicketSlot.train_run_id == order.train_run_id, TicketSlot.status == "empty")).first()
+                if ticket_slot is None:
+                    raise HTTPException(status_code=400, detail="No available ticket slot")
+                else:
+                    ticket = Ticket(price=order.price, start_sequence=order.start_seq, end_sequence=order.end_seq)
+                    ticket_slot.status = "remaining"
+                    ticket.ticket_slot = ticket_slot
+
+    user = session.get(User, order.user_id)
+    db_order = Order(status="pending", created_at=order.created_at)
+    db_order.user = user
+    db_order.ticket = ticket
+
+    session.add(db_order)
+    session.commit()
+    session.refresh(db_order)
+    return db_order
+
+def complete_order(order_id: int, session: Session):
+    order = session.get(Order, order_id)
+    if order is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.status != "pending":
+        raise HTTPException(status_code=400, detail="Invalid order status")
+    order.status = "completed"
+    order.completed_at = datetime.now()
+    order.ticket.sold = True
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+    return order
+
+def cancel_order(order_id: int, session: Session):
+    order = session.get(Order, order_id)
+    if order is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+    if order.status == "cancelled":
+        return {"message": "Order already cancelled"}
+    order.status = "cancelled"
+    order.cancelled_at = datetime.now()
+
+    ticket = order.ticket
+    ticket_slot = session.get(TicketSlot, ticket.ticket_slot_id)
+    if ticket_slot is None:
+        raise HTTPException(status_code=404, detail="Ticket slot not found")
+    if len(ticket_slot.ticket) == 1:
+        ticket_slot.status = "empty"
+    elif len(ticket_slot.ticket) > 1:
+        ticket_slot.status = "remaining"
+    session.delete(ticket)
+    session.add(ticket_slot)
+
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+    return order
+
+def remove_order(order_id: int, session: Session):
+    order = session.get(Order, order_id)
+    if order is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+    ticket_slot = session.get(TicketSlot, order.ticket.ticket_slot_id)
+    if ticket_slot is None:
+        raise HTTPException(status_code=404, detail="Ticket slot not found")
+    if len(ticket_slot.ticket) == 1:
+        ticket_slot.status = "empty"
+    elif len(ticket_slot.ticket) > 1:
+        ticket_slot.status = "remaining"
+    session.delete(order)
+    session.add(ticket_slot)
+    session.commit()
+    return {"message": "Order deleted successfully"}
 
 # Carriage CRUD
 def get_carriage(carriage_id: int, session: Session):
@@ -127,7 +269,8 @@ def remove_carriage(carriage_id: int, session: Session):
 def modify_carriage(carriage_id: int, carriage: CarriageUpdate, session: Session):
     if carriage.train_id is not None:
         train = session.get(Train, carriage.train_id)
-        if carriage.type not in train_dict[train.type]:
+        carriage_type = session.get(Carriage, carriage_id).type
+        if carriage_type not in train_dict[train.type]:
             raise HTTPException(status_code=400, detail="Invalid carriage type")
 
     db_carriage = session.get(Carriage, carriage_id)
@@ -264,15 +407,23 @@ def get_train_run_num(train_run_num_id: int, session: Session):
 
 def add_train_run_num(train_run_num: TrainRunNumCreate, session: Session):
     train_run_num_data = train_run_num.model_dump()
-    routes = train_run_num_data.pop("routes")
+    train_run_num_data.pop("routes")
     db_train_run_num = TrainRunNum.model_validate(train_run_num_data)
     session.add(db_train_run_num)
 
+    i = 1
+    kilometers = 0
     for route in train_run_num.routes:
+        if route.sequence != i:
+            raise HTTPException(status_code=400, detail="Invalid sequence")
+        if route.kilometers < kilometers:
+            raise HTTPException(status_code=400, detail="Invalid kilometers")
+        i += 1
+        kilometers = route.kilometers
+
         route_data = route.model_dump()
         station_name = route_data.pop("station_name")
         station = session.exec(select(Station).where(Station.name == station_name)).first()
-        print(station)
         if station is None:
             raise HTTPException(status_code=404, detail="Station not found")
         db_route = Route(**route_data)
@@ -341,10 +492,27 @@ def get_train_run(train_run_id: int, session: Session):
         raise HTTPException(status_code=404, detail="TrainRun not found")
     return train_run
 
+def get_train_runs_by_demand(train_run_demand: TrainRunDemand, session: Session):
+    train_runs = session.exec(
+        select(TrainRun)
+        .join(TrainRunNum)
+        .where(
+            TrainRunNum.deprecated == False,
+            TrainRunNum.routes.any(
+                Route.station.has(Station.name.in_([train_run_demand.start_station, train_run_demand.end_station]))),
+            TrainRun.locked == True,
+            TrainRun.finished == False,
+            TrainRun.running_date == train_run_demand.running_date
+        )
+    ).all()
+    return train_runs
+
 def add_train_run(train_run: TrainRunCreate, session: Session):
     train = session.get(Train, train_run.train_id)
     if train is None:
         raise HTTPException(status_code=404, detail="Train not found")
+    if not train.valid:
+        raise HTTPException(status_code=400, detail="The train is not valid")
     train_run_num = session.get(TrainRunNum, train_run.train_run_num_id)
     if train_run_num is None:
         raise HTTPException(status_code=404, detail="TrainRunNum not found")
@@ -352,6 +520,13 @@ def add_train_run(train_run: TrainRunCreate, session: Session):
     db_train_run = TrainRun.model_validate(train_run)
     db_train_run.train = train
     db_train_run.train_run_num = train_run_num
+
+    for carriage_id in session.exec(select(Carriage.id).where(Carriage.train_id == train.id)):
+        for seat in session.exec(select(Seat).where(Seat.carriage_id == carriage_id)):
+            ticket_slot = TicketSlot(status="empty")
+            ticket_slot.seat = seat
+            db_train_run.ticket_slots.append(ticket_slot)
+
     session.add(db_train_run)
     session.commit()
     session.refresh(db_train_run)
@@ -363,8 +538,8 @@ def remove_train_run(train_run_id: int, session: Session):
         raise HTTPException(status_code=404, detail="TrainRun not found")
     if train_run.finished:
         raise HTTPException(status_code=400, detail="You can't delete finished train run")
-    if train_run.tickets:
-        raise HTTPException(status_code=400, detail="TrainRun has been used in tickets")
+    if train_run.locked:
+        raise HTTPException(status_code=400, detail="You can't delete locked train run")
     session.delete(train_run)
     session.commit()
     return {"message": "TrainRun deleted successfully"}
@@ -373,19 +548,11 @@ def modify_train_run(train_run_id: int, train_run: TrainRunUpdate, session: Sess
     db_train_run = session.get(TrainRun, train_run_id)
     if db_train_run is None:
         raise HTTPException(status_code=404, detail="TrainRun not found")
-    if db_train_run.tickets:
-        raise HTTPException(status_code=400, detail="The tickets have been sold")
-    train = session.get(Train, train_run.train_id)
-    if train is None:
-        raise HTTPException(status_code=404, detail="Train not found")
-    train_run_num = session.get(TrainRunNum, train_run.train_run_num_id)
-    if train_run_num is None:
-        raise HTTPException(status_code=404, detail="TrainRunNum not found")
+    if db_train_run.locked:
+        raise HTTPException(status_code=400, detail="You can't modify locked train run")
 
     train_run_data = train_run.model_dump(exclude_unset=True)
     db_train_run.sqlmodel_update(train_run_data)
-    db_train_run.train = train
-    db_train_run.train_run_num = train_run_num
     session.add(db_train_run)
     session.commit()
     session.refresh(db_train_run)

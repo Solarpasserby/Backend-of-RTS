@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session
 from typing import Annotated
 from sql.database import engine
-from sql.schemas import TrainRunCreate, TrainRunOut, TrainRunOutWithTrain, TrainRunUpdate, TrainRunFinish
-from sql.crud import get_train_run, add_train_run, remove_train_run, modify_train_run, set_train_run_finished
+from sql.schemas import TrainRunCreate, TrainRunOut, TrainRunOutWithTrain, TrainRunUpdate, TrainRunFinish, TrainRunOutWithTrainRunNum, TrainRunDemand
+from sql.crud import get_train_run, add_train_run, remove_train_run, modify_train_run, set_train_run_finished, get_train_runs_by_demand
 
 def get_session():
     with Session(engine) as session:
@@ -20,6 +20,10 @@ router = APIRouter(
 @router.get("/{train_run_id}", response_model=TrainRunOutWithTrain)
 async def read_train_run(train_run_id: int, session: sessionDepends):
     return get_train_run(train_run_id, session)
+
+@router.get("/demand", response_model=list[TrainRunOutWithTrainRunNum])
+async def read_train_runs_by_demand(demand: TrainRunDemand, session: sessionDepends):
+    return get_train_runs_by_demand(demand, session)
 
 @router.post("/create", response_model=TrainRunOut)
 async def create_train_run(train_run: TrainRunCreate, session: sessionDepends):

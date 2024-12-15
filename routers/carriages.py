@@ -30,7 +30,7 @@ def delete_carriage(carriage_id: int, session: sessionDepends):
     return remove_carriage(carriage_id, session)
 
 @router.patch("/{carriage_id}", response_model=CarriageOut)
-def modify_carriage(carriage_id: int, carriage: CarriageUpdate, session: sessionDepends):
+def update_carriage(carriage_id: int, carriage: CarriageUpdate, session: sessionDepends):
     return modify_carriage(carriage_id, carriage, session)
 
 @router.patch("/{carriage_id}/deprecate", response_model=CarriageOut)
