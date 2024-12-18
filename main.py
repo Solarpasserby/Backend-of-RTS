@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sql.database import engine, SQLModel
 from routers import users, stations, trains, carriages, trainrunnums, trainruns, orders
 import uvicorn
@@ -13,6 +14,19 @@ app.include_router(carriages.router)
 app.include_router(trainrunnums.router)
 app.include_router(trainruns.router)
 app.include_router(orders.router)
+
+origins = [
+    "http://localhost",
+    "http://localhost:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def read_root():

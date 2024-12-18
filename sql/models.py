@@ -38,12 +38,11 @@ class TicketSlot(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     train_run_id: int = Field(foreign_key="train_run.id")
     seat_id: int = Field(foreign_key="seat.id")
-    ticket_id: int = Field(foreign_key="ticket.id")
     status: TicketSlotStatus
 
     train_run: "TrainRun" = Relationship(back_populates="ticket_slots")
     seat: "Seat" = Relationship(back_populates="ticket_slots")
-    ticket: List["Ticket"] = Relationship(back_populates="ticket_slots", cascade_delete=True)
+    tickets: List["Ticket"] = Relationship(back_populates="ticket_slot", cascade_delete=True)
 
 
 class Ticket(SQLModel, table=True):
@@ -55,7 +54,7 @@ class Ticket(SQLModel, table=True):
     start_sequence: int
     end_sequence: int
 
-    ticket_slot: TicketSlot = Relationship(back_populates="ticket")
+    ticket_slot: TicketSlot = Relationship(back_populates="tickets")
     order: "Order" = Relationship(back_populates="ticket")
 
 
@@ -69,7 +68,7 @@ class Order(SQLModel, table=True):
     cancelled_at: datetime | None = None
 
     user: User | None = Relationship(back_populates="orders")
-    ticket: Ticket | None = Relationship(back_populates="order" ,cascade_delete=True)
+    ticket: Ticket | None = Relationship(back_populates="order")
 
 
 class TrainRun(SQLModel, table=True):

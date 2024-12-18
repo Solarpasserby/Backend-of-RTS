@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends
 from sqlmodel import Session
 from typing import Annotated
 from sql.database import engine
-from sql.schemas import UserCreate, UserOut, UserUpdate, UserBan
-from sql.crud import get_user, add_user, remove_user, modify_user, set_user_ban
+from sql.schemas import UserCreate, UserOut, UserUpdate, UserBan, UserLogin
+from sql.crud import get_user, add_user, remove_user, modify_user, set_user_ban, authenticate_user
 
 def get_session():
     with Session(engine) as session:
@@ -20,6 +20,10 @@ router = APIRouter(
 @router.get("/{user_id}", response_model=UserOut)
 async def read_user(user_id: int, session: sessionDepends):
     return get_user(user_id, session)
+
+@router.post("/login", response_model=UserOut)
+async def check_user_login(user: UserLogin, session: sessionDepends):
+    return authenticate_user(user, session)
 
 @router.post("/create", response_model=UserOut)
 async def create_user(user: UserCreate, session: sessionDepends):

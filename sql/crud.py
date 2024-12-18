@@ -2,7 +2,7 @@ from fastapi import HTTPException
 from sqlmodel import Session, select
 from datetime import datetime
 from sql.models import User, Train, Carriage, Seat, Station, TrainRunNum, Route, TrainRun, Ticket, TicketSlot, Order
-from sql.schemas import UserCreate, UserUpdate
+from sql.schemas import UserCreate, UserUpdate, UserLogin
 from sql.schemas import CarriageCreate, CarriageUpdate
 from sql.schemas import StationCreate, StationUpdate
 from sql.schemas import TrainCreate, TrainUpdate
@@ -42,6 +42,12 @@ price_multiple_dict = {
 # User CRUD
 def get_user(user_id: int, session: Session):
     user = session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+def authenticate_user(user: UserLogin, session: Session):
+    user = session.exec(select(User).where(User.name == user.name, User.password == user.password)).one()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return user
@@ -203,9 +209,10 @@ def cancel_order(order_id: int, session: Session):
 
 def remove_order(order_id: int, session: Session):
     order = session.get(Order, order_id)
+    ticket = session.get(Ticket, order.ticket_id)
     if order is None:
         raise HTTPException(status_code=404, detail="Order not found")
-    ticket_slot = session.get(TicketSlot, order.ticket.ticket_slot_id)
+    ticket_slot = session.get(TicketSlot, ticket.ticket_slot_id)
     if ticket_slot is None:
         raise HTTPException(status_code=404, detail="Ticket slot not found")
     if len(ticket_slot.ticket) == 1:
@@ -213,6 +220,7 @@ def remove_order(order_id: int, session: Session):
     elif len(ticket_slot.ticket) > 1:
         ticket_slot.status = "remaining"
     session.delete(order)
+    session.delete(ticket)
     session.add(ticket_slot)
     session.commit()
     return {"message": "Order deleted successfully"}

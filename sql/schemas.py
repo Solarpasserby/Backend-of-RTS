@@ -8,6 +8,9 @@ class UserBase(BaseModel):
     name: str
     telephone: str
 
+class UserLogin(UserBase):
+    password: str
+
 class UserCreate(UserBase):
     password: str
 
