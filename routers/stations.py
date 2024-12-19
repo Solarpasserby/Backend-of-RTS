@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
-from typing import Annotated
+from typing import Annotated, List
 from sql.database import engine
 from sql.schemas import StationCreate, StationOut, StationUpdate, StationDeprecate
-from sql.crud import get_station, add_station, remove_station, modify_station, set_station_deprecated
+from sql.crud import get_station, add_station, remove_station, modify_station, set_station_deprecated, get_stations
 
 def get_session():
     with Session(engine) as session:
@@ -21,6 +21,10 @@ router = APIRouter(
 async def read_station(station_id: int, session: sessionDepends):
     return get_station(station_id, session)
 
+@router.get("/", response_model=List[StationOut])
+async def read_stations(offset: int = 0, limit: int = 10, session: Session = Depends(get_session)):
+    return get_stations(offset, limit, session)
+
 @router.post("/create", response_model=StationOut)
 async def create_station(station: StationCreate, session: sessionDepends):
     return add_station(station, session)
@@ -34,5 +38,5 @@ async def update_station(station_id: int, station: StationUpdate, session: sessi
     return modify_station(station_id, station, session)
 
 @router.patch("/{station_id}/deprecated", response_model=StationOut)
-def set_station_deprecated(station_id: int, station: StationDeprecate, session: sessionDepends):
+def set_station_status(station_id: int, station: StationDeprecate, session: sessionDepends):
     return set_station_deprecated(station_id, station.deprecated, session)

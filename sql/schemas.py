@@ -1,7 +1,17 @@
 from pydantic import BaseModel
 from .models import TrainType, CarriageType
 from datetime import time, date, datetime
-from typing import List
+from typing import List, Optional
+
+# admin schemas
+class AdminLogin(BaseModel):
+    name: str
+    password: str
+
+class AdminOut(BaseModel):
+    id: int
+    name: str
+
 
 # User schemas
 class UserBase(BaseModel):
@@ -18,9 +28,9 @@ class UserOut(UserBase):
     id: int
 
 class UserUpdate(BaseModel):
-    name: str | None
-    telephone: str | None
-    password: str | None
+    name: str | None = None
+    telephone: str | None = None
+    password: str | None = None
 
 class UserBan(BaseModel):
     banned: bool = True
@@ -69,7 +79,7 @@ class TrainOutWithCarriages(TrainOut):
     carriages: List["CarriageOut"] | None
 
 class TrainUpdate(BaseModel):
-    valid: bool | None
+    valid: bool | None = None
 
 class TrainDeprecate(BaseModel):
     deprecated: bool = True
@@ -92,8 +102,8 @@ class CarriageOutWithTrain(CarriageOut):
     train: TrainOut | None
 
 class CarriageUpdate(BaseModel):
-    num: int | None
-    train_id: int | None
+    num: int | None = None
+    train_id: int | None = None
 
 class CarriageDeprecate(BaseModel):
     deprecated: bool = True
@@ -112,8 +122,8 @@ class StationOut(StationBase):
     deprecated: bool
 
 class StationUpdate(BaseModel):
-    name: str | None
-    city: str | None
+    name: str | None = None
+    city: str | None = None
 
 class StationDeprecate(BaseModel):
     deprecated: bool = True
@@ -137,10 +147,10 @@ class RouteOutWithTrainRunNum(RouteOut):
     station: "StationOut"
 
 class RouteUpdate(BaseModel):
-    arrival_time: str | None
-    departure_time: str | None
-    sequence: int | None
-    kilometers: int | None
+    arrival_time: Optional[time] = None
+    departure_time: Optional[time] = None
+    sequence: int | None = None
+    kilometers: int | None = None
 
 
 # TrainRunNum schemas
@@ -158,7 +168,7 @@ class TrainRunNumOutWithRoutes(TrainRunNumOut):
     routes: List["RouteOut"]
 
 class TrainRunNumUpdate(BaseModel):
-    name: str | None
+    name: str | None = None
 
 class TrainRunNumDeprecate(BaseModel):
     deprecated: bool = True
@@ -190,8 +200,8 @@ class TrainRunOutWithTrainRunNum(TrainRunBase):
     train_run_num: TrainRunNumOutWithRoutes
 
 class TrainRunUpdate(BaseModel):
-    date: date | None
-    locked: bool | None
+    date: Optional[date] = None
+    locked: bool | None = None
 
 class TrainRunFinish(BaseModel):
     finished: bool = True

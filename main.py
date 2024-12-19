@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sql.database import engine, SQLModel
-from routers import users, stations, trains, carriages, trainrunnums, trainruns, orders
+from routers import users, stations, trains, carriages, trainrunnums, trainruns, orders, admin
 import uvicorn
 
 def create_db_and_tables():
@@ -14,6 +14,7 @@ app.include_router(carriages.router)
 app.include_router(trainrunnums.router)
 app.include_router(trainruns.router)
 app.include_router(orders.router)
+app.include_router(admin.router)
 
 origins = [
     "http://localhost",

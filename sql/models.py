@@ -23,6 +23,12 @@ class CarriageType(str, Enum):
     business = "business"
 
 
+class Admin(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    name: str
+    password: str
+
+
 class User(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str

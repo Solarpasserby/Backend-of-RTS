@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
-from typing import Annotated
+from typing import Annotated, List
 from sql.database import engine
 from sql.schemas import OrderCreate, OrderOut, OrderOutWithTicket
-from sql.crud import get_order, get_orders_by_user, add_order, complete_order, cancel_order, remove_order
+from sql.crud import get_order, get_orders_by_user, add_order, complete_order, cancel_order, remove_order, get_orders
 
 def get_session():
     with Session(engine) as session:
@@ -21,7 +21,11 @@ router = APIRouter(
 async def read_order(order_id: int, session: sessionDepends):
     return get_order(order_id, session)
 
-@router.get("/user/{user_id}", response_model=list[OrderOutWithTicket])
+@router.get("/", response_model=List[OrderOutWithTicket])
+async def read_orders(offset: int = 0, limit: int = 10, session: Session = Depends(get_session)):
+    return get_orders(offset, limit, session)
+
+@router.get("/user/{user_id}", response_model=List[OrderOutWithTicket])
 async def read_orders_by_user(user_id: int, session: sessionDepends):
     return get_orders_by_user(user_id, session)
 

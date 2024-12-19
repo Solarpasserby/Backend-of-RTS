@@ -1,8 +1,8 @@
 from fastapi import HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from datetime import datetime
-from sql.models import User, Train, Carriage, Seat, Station, TrainRunNum, Route, TrainRun, Ticket, TicketSlot, Order
-from sql.schemas import UserCreate, UserUpdate, UserLogin
+from sql.models import User, Train, Carriage, Seat, Station, TrainRunNum, Route, TrainRun, Ticket, TicketSlot, Order, Admin
+from sql.schemas import UserCreate, UserUpdate, UserLogin, AdminLogin
 from sql.schemas import CarriageCreate, CarriageUpdate
 from sql.schemas import StationCreate, StationUpdate
 from sql.schemas import TrainCreate, TrainUpdate
@@ -10,6 +10,7 @@ from sql.schemas import TrainRunNumCreate, TrainRunNumUpdate, TrainRunDemand
 from sql.schemas import RouteUpdate
 from sql.schemas import TrainRunCreate, TrainRunUpdate
 from sql.schemas import OrderCreate
+from sql.schemas import AdminLogin
 
 train_dict = {
     "fast": ["second_class", "first_class", "business"],
@@ -38,6 +39,30 @@ price_multiple_dict = {
     "business": 4
 }
 
+# Admin
+def authenticate_admin(admin: AdminLogin, session: Session):
+    admin = session.exec(select(Admin).where(Admin.name == admin.name, Admin.password == admin.password)).one()
+    if admin is None:
+        raise HTTPException(status_code=404, detail="Admin not found")
+    return admin
+
+def get_count(table: str, session: Session):
+    if table == "users":
+        count = session.exec(select(func.count(User.id))).one()
+    elif table == "orders":
+        count = session.exec(select(func.count(Order.id))).one()
+    elif table == "trains":
+        count = session.exec(select(func.count(Train.id))).one()
+    elif table == "stations":
+        count = session.exec(select(func.count(Station.id))).one()
+    elif table == "runs":
+        count = session.exec(select(func.count(TrainRun.id))).one()
+    elif table == "nums":
+        count = session.exec(select(func.count(TrainRunNum.id))).one()
+    else:
+        raise HTTPException(status_code=400, detail="Invalid table")
+    return {"count": count}
+
 
 # User CRUD
 def get_user(user_id: int, session: Session):
@@ -45,6 +70,10 @@ def get_user(user_id: int, session: Session):
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return user
+
+def get_users(offset: int, limit: int, session: Session):
+    users = session.exec(select(User).offset(offset).limit(limit)).all()
+    return users
 
 def authenticate_user(user: UserLogin, session: Session):
     user = session.exec(select(User).where(User.name == user.name, User.password == user.password)).one()
@@ -95,6 +124,10 @@ def get_order(order_id: int, session: Session):
     if order is None:
         raise HTTPException(status_code=404, detail="Order not found")
     return order
+
+def get_orders(offset: int, limit: int, session: Session):
+    orders = session.exec(select(Order).offset(offset).limit(limit)).all()
+    return orders
 
 def get_orders_by_user(user_id: int, session: Session):
     orders = session.exec(select(Order).where(Order.user_id == user_id)).all()
@@ -309,6 +342,10 @@ def get_train(train_id: int, session: Session):
         raise HTTPException(status_code=404, detail="Train not found")
     return train
 
+def get_trains(offset: int, limit: int, session: Session):
+    trains = session.exec(select(Train).offset(offset).limit(limit)).all()
+    return trains
+
 def add_train(train: TrainCreate, session: Session):
     train_data = train.model_dump()
     train_data.pop("carriages")
@@ -365,6 +402,10 @@ def get_station(station_id: int, session: Session):
         raise HTTPException(status_code=404, detail="Station not found")
     return station
 
+def get_stations(offset: int, limit: int, session: Session):
+    stations = session.exec(select(Station).offset(offset).limit(limit)).all()
+    return stations
+
 def add_station(station: StationCreate, session: Session):
     db_station = Station.model_validate(station)
     session.add(db_station)
@@ -412,6 +453,10 @@ def get_train_run_num(train_run_num_id: int, session: Session):
     if train_run_num is None:
         raise HTTPException(status_code=404, detail="TrainRunNum not found")
     return train_run_num
+
+def get_train_run_nums(offset: int, limit: int, session: Session):
+    train_run_nums = session.exec(select(TrainRunNum).offset(offset).limit(limit)).all()
+    return train_run_nums
 
 def add_train_run_num(train_run_num: TrainRunNumCreate, session: Session):
     train_run_num_data = train_run_num.model_dump()
@@ -499,6 +544,10 @@ def get_train_run(train_run_id: int, session: Session):
     if train_run is None:
         raise HTTPException(status_code=404, detail="TrainRun not found")
     return train_run
+
+def get_train_runs(offset: int, limit: int, session: Session):
+    train_runs = session.exec(select(TrainRun).offset(offset).limit(limit)).all()
+    return train_runs
 
 def get_train_runs_by_demand(train_run_demand: TrainRunDemand, session: Session):
     train_runs = session.exec(

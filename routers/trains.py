@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
-from typing import Annotated
+from typing import Annotated, List
 from sql.database import engine
 from sql.schemas import TrainCreate, TrainOut, TrainOutWithCarriages, TrainUpdate, TrainDeprecate
-from sql.crud import get_train, add_train, remove_train, modify_train, set_train_deprecated
+from sql.crud import get_train, add_train, remove_train, modify_train, set_train_deprecated, get_trains
 
 def get_session():
     with Session(engine) as session:
@@ -20,6 +20,10 @@ router = APIRouter(
 @router.get("/{train_id}", response_model=TrainOutWithCarriages)
 async def read_train(train_id: int, session: sessionDepends):
     return get_train(train_id, session)
+
+@router.get("/", response_model=List[TrainOut])
+async def read_trains(offset: int = 0, limit: int = 10, session: Session = Depends(get_session)):
+    return get_trains(offset, limit, session)
 
 @router.post("/create", response_model=TrainOut)
 async def create_train(train: TrainCreate, session: sessionDepends):
