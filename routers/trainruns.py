@@ -41,6 +41,6 @@ def delete_train_run(train_run_id: int, session: sessionDepends):
 async def update_train_run(train_run_id: int, train_run: TrainRunUpdate, session: sessionDepends):
     return modify_train_run(train_run_id, train_run, session)
 
-@router.patch("/{train_run_id}/finish", response_model=TrainRunOut)
+@router.patch("/{train_run_id}/finished", response_model=TrainRunOut)
 def finish_train_run(train_run_id: int, train_run: TrainRunFinish, session: sessionDepends):
     return set_train_run_finished(train_run_id, train_run.finished, session)

@@ -37,6 +37,6 @@ def delete_train(train_id: int, session: sessionDepends):
 def update_train(train_id: int, train: TrainUpdate, session: sessionDepends):
     return modify_train(train_id, train, session)
 
-@router.patch("/{train_id}/deprecate", response_model=TrainOut)
+@router.patch("/{train_id}/deprecated", response_model=TrainOut)
 def deprecate_train(train_id: int, train: TrainDeprecate, session: sessionDepends):
     return set_train_deprecated(train_id, train.deprecated, session)

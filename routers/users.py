@@ -41,6 +41,6 @@ def delete_user(user_id: int, session: sessionDepends):
 async def update_user(user_id: int, user: UserUpdate, session: sessionDepends):
     return modify_user(user_id, user, session)
 
-@router.patch("/{user_id}/ban", response_model=UserOut)
+@router.patch("/{user_id}/banned", response_model=UserOut)
 def ban_user(user_id: int, user: UserBan, session: sessionDepends):
     return set_user_ban(user_id, user.banned, session)
