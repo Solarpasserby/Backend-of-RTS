@@ -550,19 +550,43 @@ def get_train_runs(offset: int, limit: int, session: Session):
     return train_runs
 
 def get_train_runs_by_demand(train_run_demand: TrainRunDemand, session: Session):
+    # 子查询：获取 start_station 和 end_station 的 Route.sequence 值
+    start_station_sequence = (
+        select(Route.sequence)
+        .join(Station)
+        .where(
+            Station.name == train_run_demand.start_station,
+            Route.train_run_num_id == TrainRunNum.id
+        )
+    ).scalar_subquery()
+
+    end_station_sequence = (
+        select(Route.sequence)
+        .join(Station)
+        .where(
+            Station.name == train_run_demand.end_station,
+            Route.train_run_num_id == TrainRunNum.id
+        )
+    ).scalar_subquery()
+
+    # 主查询
     train_runs = session.exec(
         select(TrainRun)
         .join(TrainRunNum)
         .where(
             TrainRunNum.deprecated == False,
             TrainRunNum.routes.any(
-                Route.station.has(Station.name.in_([train_run_demand.start_station, train_run_demand.end_station]))),
+                Route.station.has(Station.name.in_([train_run_demand.start_station, train_run_demand.end_station]))
+            ),
             TrainRun.locked == True,
             TrainRun.finished == False,
-            TrainRun.running_date == train_run_demand.running_date
+            TrainRun.running_date == train_run_demand.running_date,
+            start_station_sequence < end_station_sequence  # 添加顺序条件
         )
     ).all()
+
     return train_runs
+
 
 def add_train_run(train_run: TrainRunCreate, session: Session):
     train = session.get(Train, train_run.train_id)

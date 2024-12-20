@@ -26,6 +26,7 @@ class UserCreate(UserBase):
 
 class UserOut(UserBase):
     id: int
+    banned: bool
 
 class UserUpdate(BaseModel):
     name: str | None = None
@@ -200,7 +201,7 @@ class TrainRunOutWithTrainRunNum(TrainRunBase):
     train_run_num: TrainRunNumOutWithRoutes
 
 class TrainRunUpdate(BaseModel):
-    date: Optional[date] = None
+    running_date: Optional[date] = None
     locked: bool | None = None
 
 class TrainRunFinish(BaseModel):
