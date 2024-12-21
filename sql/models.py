@@ -67,7 +67,7 @@ class Ticket(SQLModel, table=True):
 class Order(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     user_id: int | None = Field(foreign_key="user.id")
-    ticket_id: int = Field(foreign_key="ticket.id")
+    ticket_id: int | None = Field(foreign_key="ticket.id")
     status: OrderStatus
     created_at: datetime
     completed_at: datetime | None = None
@@ -109,6 +109,7 @@ class Carriage(SQLModel, table=True):
     deprecated: bool = False
 
     train: Train | None = Relationship(back_populates="carriages")
+    seats: List["Seat"] = Relationship(back_populates="carriage", cascade_delete=True)
 
 
 class Seat(SQLModel, table=True):
@@ -118,6 +119,7 @@ class Seat(SQLModel, table=True):
     available: bool = True
 
     ticket_slots: List["TicketSlot"] = Relationship(back_populates="seat", cascade_delete=True)
+    carriage: Carriage = Relationship(back_populates="seats")
 
 
 class TrainRunNum(SQLModel, table=True):

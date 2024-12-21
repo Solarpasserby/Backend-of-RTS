@@ -25,7 +25,7 @@ async def read_train_run(train_run_id: int, session: sessionDepends):
 async def read_train_runs(offset: int = 0, limit: int = 10, session: Session = Depends(get_session)):
     return get_train_runs(offset, limit, session)
 
-@router.get("/demand", response_model=List[TrainRunOutWithTrainRunNum])
+@router.post("/demand", response_model=List[TrainRunOutWithTrainRunNum])
 async def read_train_runs_by_demand(demand: TrainRunDemand, session: sessionDepends):
     return get_train_runs_by_demand(demand, session)
 

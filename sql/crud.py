@@ -192,7 +192,7 @@ def add_order(order: OrderCreate, session: Session):
                     ticket.ticket_slot = ticket_slot
 
     user = session.get(User, order.user_id)
-    db_order = Order(status="pending", created_at=order.created_at)
+    db_order = Order(status="pending", created_at=datetime.now())
     db_order.user = user
     db_order.ticket = ticket
 
@@ -228,9 +228,9 @@ def cancel_order(order_id: int, session: Session):
     ticket_slot = session.get(TicketSlot, ticket.ticket_slot_id)
     if ticket_slot is None:
         raise HTTPException(status_code=404, detail="Ticket slot not found")
-    if len(ticket_slot.ticket) == 1:
+    if len(ticket_slot.tickets) == 1:
         ticket_slot.status = "empty"
-    elif len(ticket_slot.ticket) > 1:
+    elif len(ticket_slot.tickets) > 1:
         ticket_slot.status = "remaining"
     session.delete(ticket)
     session.add(ticket_slot)
@@ -280,15 +280,16 @@ def add_carriage(carriage: CarriageCreate, session: Session, train_id: int | Non
     seat_rows = carriage_data.pop("seat_rows")
     db_carriage = Carriage.model_validate(carriage_data)
     db_carriage.train = train
-    session.add(db_carriage)
-    session.flush()
 
     row_seats = seat_dict[carriage.type]
     for i in range(seat_rows):
         for j in range(row_seats):
             num = f"{i+1}{seat_num_dict[carriage.type][j]}"
-            seat = Seat(carriage_id=db_carriage.id, seat_num=num)
-            session.add(seat)
+            seat = Seat(seat_num=num)
+            db_carriage.seats.append(seat)
+
+    session.add(db_carriage)
+
 
     if auto_commit:
         session.commit()
@@ -549,22 +550,37 @@ def get_train_runs(offset: int, limit: int, session: Session):
     train_runs = session.exec(select(TrainRun).offset(offset).limit(limit)).all()
     return train_runs
 
+
 def get_train_runs_by_demand(train_run_demand: TrainRunDemand, session: Session):
-    # 子查询：获取 start_station 和 end_station 的 Route.sequence 值
+    # 获取起点和终点站点信息
+    stations = session.exec(
+        select(Station)
+        .where(Station.name.in_([train_run_demand.start_station, train_run_demand.end_station]))
+    ).all()
+
+    if len(stations) != 2:
+        missing_stations = [name for name in [train_run_demand.start_station, train_run_demand.end_station]
+                            if not any(station.name == name for station in stations)]
+        raise HTTPException(status_code=404, detail=f"Stations not found: {', '.join(missing_stations)}")
+
+    # 提取起点和终点站点
+    station_map = {station.name: station for station in stations}
+    start_station = station_map[train_run_demand.start_station]
+    end_station = station_map[train_run_demand.end_station]
+
+    # 子查询：获取 Route.sequence 的值
     start_station_sequence = (
         select(Route.sequence)
-        .join(Station)
         .where(
-            Station.name == train_run_demand.start_station,
+            Route.station_id == start_station.id,
             Route.train_run_num_id == TrainRunNum.id
         )
     ).scalar_subquery()
 
     end_station_sequence = (
         select(Route.sequence)
-        .join(Station)
         .where(
-            Station.name == train_run_demand.end_station,
+            Route.station_id == end_station.id,
             Route.train_run_num_id == TrainRunNum.id
         )
     ).scalar_subquery()
@@ -576,17 +592,16 @@ def get_train_runs_by_demand(train_run_demand: TrainRunDemand, session: Session)
         .where(
             TrainRunNum.deprecated == False,
             TrainRunNum.routes.any(
-                Route.station.has(Station.name.in_([train_run_demand.start_station, train_run_demand.end_station]))
+                Route.station_id.in_([start_station.id, end_station.id])
             ),
             TrainRun.locked == True,
             TrainRun.finished == False,
             TrainRun.running_date == train_run_demand.running_date,
-            start_station_sequence < end_station_sequence  # 添加顺序条件
+            start_station_sequence < end_station_sequence  # 起点序号需小于终点序号
         )
     ).all()
 
     return train_runs
-
 
 def add_train_run(train_run: TrainRunCreate, session: Session):
     train = session.get(Train, train_run.train_id)

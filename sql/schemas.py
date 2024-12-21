@@ -142,6 +142,7 @@ class RouteCreate(RouteBase):
 
 class RouteOut(RouteBase):
     id: int
+    station: "StationOut"
 
 class RouteOutWithTrainRunNum(RouteOut):
     train_run_num: "TrainRunNumOut"
@@ -188,16 +189,19 @@ class TrainRunCreate(TrainRunBase):
 
 class TrainRunOut(TrainRunBase):
     id: int
+    locked: bool
     train_id: int
     train_run_num_id: int
 
 class TrainRunOutWithTrain(TrainRunBase):
     id: int
+    locked: bool
     train: TrainOut
     train_run_num: TrainRunNumOut
 
 class TrainRunOutWithTrainRunNum(TrainRunBase):
     id: int
+    locked: bool
     train_run_num: TrainRunNumOutWithRoutes
 
 class TrainRunUpdate(BaseModel):
