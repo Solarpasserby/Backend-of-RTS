@@ -6,7 +6,7 @@ import uvicorn
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
-app = FastAPI()
+app = FastAPI(root_path="/api")
 app.include_router(users.router)
 app.include_router(stations.router)
 app.include_router(trains.router)
@@ -19,6 +19,9 @@ app.include_router(admin.router)
 origins = [
     "http://localhost",
     "http://localhost:5173",
+    "http://localhost:443",
+    "https://lorenash.me",
+    "https://lorenash.me:443",
 ]
 
 app.add_middleware(
@@ -35,9 +38,7 @@ def read_root():
 
 def main():
     create_db_and_tables()
-    # --reload flag is used to reload the server when the code changes
-    # so it's recommended to use it only in development
-    uvicorn.run("main:app", host="127.0.0.1", port=8080, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8080)
 
 if __name__ == "__main__":
     main()
